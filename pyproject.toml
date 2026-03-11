@@ -1,0 +1,13 @@
+[project]
+name = "brownfield-cartographer"
+version = "0.1.0"
+description = "Static analysis and graph mapping for Airflow codebases."
+requires-python = ">=3.9"
+dependencies = [
+	"pydantic>=2.0",
+	"tree-sitter-languages",
+	"typer",
+	"networkx"
+]
+
+[tool.uv]
