@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: brownfield-cartographer
+Version: 0.1.0
+Summary: Static analysis and graph mapping for Airflow codebases.
+Requires-Python: >=3.9
+Requires-Dist: pydantic>=2.0
+Requires-Dist: tree-sitter-languages
+Requires-Dist: typer
+Requires-Dist: networkx
+Requires-Dist: sqlglot

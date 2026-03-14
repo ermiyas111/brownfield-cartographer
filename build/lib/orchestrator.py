@@ -1,6 +1,6 @@
 import os
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from src.agents.surveyor import Surveyor
 from src.agents.hydrologist import PythonDataFlowAnalyzer, SQLLineageAnalyzer, DAGConfigAnalyzer, DataLineageGraph
 import networkx as nx
@@ -19,7 +19,7 @@ def main(repo_path: str):
     # Phase 1: Surveyor
     surveyor = Surveyor(repo_path)
     py_files = list(find_files(repo_path, (".py",)))
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         list(executor.map(surveyor.analyze_file, py_files))
     surveyor.build_graph()
     pagerank, circular = surveyor.analyze_graph()
