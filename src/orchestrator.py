@@ -70,7 +70,26 @@ def main(repo_path: str):
     lineage_out = os.path.join(repo_path, '.cartography', 'lineage_graph.json')
     with open(lineage_out, 'w', encoding='utf-8') as f:
         json.dump(json_graph.node_link_data(lineage_graph.graph), f, indent=2)
+
     print(f"Lineage graph written to {lineage_out}")
+
+    # Phase 3: Generate CODEBASE.md
+    try:
+        from src.agents.archivist import generate_CODEBASE_md
+        # Build a mock knowledge_graph from available data (for now)
+        knowledge_graph = {
+            'clusters': [],  # TODO: Fill with real clusters from Semanticist
+            'pagerank': [{'path': n, 'score': s} for n, s in getattr(surveyor, 'pagerank', {}).items()] if hasattr(surveyor, 'pagerank') else [],
+            'sources': list(lineage_graph.graph.nodes),
+            'sinks': list(lineage_graph.graph.nodes),
+            'circular': circular if 'circular' in locals() else [],
+            'high_velocity': [],  # TODO: Fill with real git velocity data
+        }
+        codebase_md_path = os.path.join(repo_path, '.cartography', 'CODEBASE.md')
+        generate_CODEBASE_md(knowledge_graph, codebase_md_path)
+        print(f"CODEBASE.md written to {codebase_md_path}")
+    except Exception as e:
+        print(f"[WARN] Could not generate CODEBASE.md: {e}")
 
 if __name__ == '__main__':
     import sys
