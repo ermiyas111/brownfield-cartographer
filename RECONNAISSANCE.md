@@ -1,40 +1,61 @@
 # RECONNAISSANCE.md
+---
 
-## 1. The Five FDE Day-One Questions (Manual Ground Truth)
+## FDE Day-One Questions
 
-### **Q1: What is the primary data ingestion path?**
-Airflow is an orchestrator, not a specialized ETL tool, so "ingestion" is fragmented. The primary entry point for a developer is the **Scheduler**.
-* **Code Path:** `airflow/jobs/scheduler_job_runner.py` manages the orchestration loop.
-* **The "Work":** The actual data movement happens in the **Providers** (e.g., `airflow/providers/google/`, `airflow/providers/amazon/`).
-* **Discovery:** Searching for "S3ToGCS" or "Copy" in the providers' directory reveals how data actually moves between clouds.
+### Q1: Ingestion Path
+**How does Meltano handle a `meltano run` command?**
 
-### **Q2: What is the "Blast Radius"?**
-* **The Core:** Almost everything. Specifically, the **Models** layer (`airflow/models/`).
-* **Critical Files:** `airflow/models/dag.py`, `airflow/models/taskinstance.py`, and `airflow/models/baseoperator.py`. 
-* **Impact:** Any schema change requires a migration via Alembic (`airflow/migrations/`). A break here kills the Webserver, Scheduler, and Workers simultaneously because they all heartbeat to the same metadata DB.
+- The journey starts in `cli.py` (the Click CLI entry point). The `run` command is routed through a maze of decorators and subcommands.
+- Eventually, it lands in the `MeltanoRunner` or `Runner` class, which is responsible for orchestrating pipeline execution.
+- The actual invocation of a Singer tap (the data ingestion logic) is buried under layers of plugin management, environment resolution, and dynamic imports.
+- Expect to traverse: `cli.py` → `commands/run.py` → `core/runner.py` → `plugin/command.py` → `singer/runner.py`.
+- The code is allergic to directness—expect indirection, context managers, and a healthy dose of dynamic class loading.
 
-### **Q3: Where is the "Silent Debt"? (Logic vs. Documentation)**
-* **The Drift:** The official docs emphasize the modern "TaskFlow API" (decorators), but the codebase is still heavily reliant on "Classic Operators."
-* **Evidence:** Deep in `airflow/utils/helpers.py` and the complex logic in `airflow/www/views.py`, there are legacy workarounds for XCom backends and timezone handling that aren't fully reflected in the "getting started" guides.
-* **The "Gotcha":** The relationship between `TaskGroup` and the old `SubDAG` logic is a graveyard of deprecated-but-still-present code.
+### Q2: Blast Radius
+**If the Meltano.yml parser or the internal SQLAlchemy metadata schema changes, what breaks?**
 
-### **Q4: What is the "Hidden Architecture"? (The undocumented "True" flow)**
-* **The Reality:** The `airflow/executors/` directory. While the UI shows DAGs, the true execution power (and complexity) lies in how the **CeleryExecutor** or **KubernetesExecutor** interfaces with the OS. 
-* **The Secret Sauce:** The `airflow/settings.py` file. It’s the "ghost in the machine" that configures the environment, database connections, and pluggable components before any code even runs.
+- The `Meltano.yml` parser is the lifeblood of project configuration. Any change here will ripple through project initialization, plugin discovery, and environment resolution.
+- The SQLAlchemy schema underpins the system DB. Changes here will break migrations, state management, and possibly orphan historical run data.
+- In short: _everything_. The blast radius is total—expect breakage in project bootstrapping, plugin loading, and even CLI help output.
 
-### **Q5: What is the "Dead Wood"? (Unused or Deprecated paths)**
-* **Legacy UI:** There are still remnants of the older Flask-AppBuilder views that are being transitioned to the new REST API and future UI iterations.
-* **Old Providers:** Certain internal "contrib" or older provider hooks (like legacy Hadoop/HDFS hooks) have significantly less activity and test coverage compared to the modern cloud providers, suggesting they are candidates for deprecation or "maintenance mode."
+### Q3: Silent Debt
+**Discrepancies between "Meltano 2.0/3.0" docs and legacy code?**
+
+- The docs talk a big game about "Plugin Definitions" and a clean, modern architecture.
+- In reality, `discovery.yml` and legacy plugin logic still lurk in the codebase, especially around plugin discovery and environment variable handling.
+- There are vestigial code paths for old-style plugin definitions, and the migration to the new model is... incomplete.
+- Watch for: code that references both `discovery.yml` and new plugin classes, and logic that tries to bridge the gap (usually with TODOs and warnings).
+
+### Q4: Hidden Architecture
+**Where is state actually stored?**
+
+- State is split between the `system_db` (SQLAlchemy) and incremental state bookmarks (often JSON blobs or files).
+- The logic for managing state is scattered: look in `core/state.py`, `system/db.py`, and various plugin-specific state handlers.
+- The "real" state is a Frankenstein: part database, part file, part in-memory, and part "hope for the best."
+
+### Q5: Dead Wood
+**Deprecated features with low coverage/activity?**
+
+- Early UI components (e.g., the old web UI) are still present but clearly unloved.
+- Legacy environment variable handling (pre-2.0) is scattered and poorly tested.
+- Some plugin types and discovery logic are marked as deprecated but not actually removed.
+- The test suite skips or ignores these features—if they break, nobody will notice (or care).
 
 ---
 
-## 2. Difficulty Analysis: The "Manual Fatigue" Report
+## Difficulty Analysis
 
-### **What was hardest to figure out?**
-**Traceability of an Execution.** I spent 15 minutes trying to follow exactly what happens from the moment a user clicks "Trigger DAG" in the UI to the moment a Python function executes on a worker. 
-* The path goes: `www/views.py` -> `models/dag.py` -> `database` -> `scheduler_job_runner.py` -> `executors/` -> `task_command.py`. 
-* Manually jumping between these files across thousands of lines of code is mentally taxing and where I most frequently lost the "thread."
+### Where Do Humans Get Lost?
+- The inheritance tree for Plugin types is a labyrinth. Multiple base classes, mixins, and dynamic attributes make it nearly impossible to trace behavior without a graph.
+- The abstraction layer between the CLI and the `Project` class is a black box. Data flows through context objects, dependency injectors, and global state.
+- Tracing a setting from `.env` → config → plugin execution is a Herculean task. The flow is non-linear, with overrides, fallbacks, and magic environment resolution.
 
-### **Where did I get lost?**
-* **Inheritance Complexity:** `BaseOperator` is inherited by multiple other classes. Finding where a specific argument (like `retries`) is actually validated versus where it’s just passed along in `**kwargs` is a nightmare without a robust symbol-mapping tool.
-* **The Provider Jungle:** The `airflow/providers` directory is so large it crashes some basic IDE search indexes
+### Hardest Parts to Map Without a Graph
+- Plugin instantiation and execution: The dynamic loading and registration of plugins is so abstracted that only a graph can reveal the true call paths.
+- State management: The interplay between the system DB, state files, and in-memory state is opaque and scattered.
+- Configuration propagation: Following a config value from source to sink (especially across legacy and new code) is nearly impossible without automated tooling.
+
+---
+
+_If you are reading this at 2:00 AM, good luck. The codebase is a living fossil—layered, inconsistent, and full of surprises. Bring coffee and a graph._
