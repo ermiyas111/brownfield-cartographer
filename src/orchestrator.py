@@ -7,7 +7,10 @@ import networkx as nx
 from networkx.readwrite import json_graph
 
 def find_files(root: str, exts=(".py", ".sql", ".yaml", ".yml")):
-    for dirpath, _, filenames in os.walk(root):
+    ignore_dirs = {'.git', '.venv', 'venv', '__pycache__'}
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Remove ignored directories in-place
+        dirnames[:] = [d for d in dirnames if d not in ignore_dirs]
         for f in filenames:
             if f.endswith(exts):
                 yield os.path.join(dirpath, f)

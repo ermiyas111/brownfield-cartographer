@@ -9,3 +9,5 @@ class ModuleNode(BaseModel):
     functions: List[str]
     git_velocity: Optional[float] = None
     pagerank: Optional[float] = None
+    is_plugin: bool = False
+    plugin_category: Optional[str] = None
