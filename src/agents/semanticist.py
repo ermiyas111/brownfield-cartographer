@@ -61,10 +61,11 @@ Code:
         return purpose.lower() in docstring.lower() or docstring.lower() in purpose.lower()
 
     async def bulk_generate_purpose_statements(self, module_nodes: List[Dict[str, Any]]):
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as executor:
-            tasks = [loop.run_in_executor(executor, asyncio.ensure_future, self.generate_purpose_statement(node)) for node in module_nodes]
-            results = await asyncio.gather(*tasks)
+        # Sequential async for compatibility; can be parallelized with asyncio.to_thread if needed
+        results = []
+        for node in module_nodes:
+            result = await self.generate_purpose_statement(node)
+            results.append(result)
         return results
 
     def cluster_into_domains(self, module_nodes: List[Dict[str, Any]], k=6):

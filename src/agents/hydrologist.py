@@ -22,10 +22,73 @@ class PythonDataFlowAnalyzer:
         self.router = tree_sitter_router
 
     def analyze(self, code: str) -> List[Dict[str, Any]]:
-        # Placeholder: Use tree-sitter to find data calls and extract sources/sinks
-        # If argument is dynamic, label as DYNAMIC_REFERENCE
-        # Return list of dicts: {type, source, sink, file, dynamic}
-        return []
+        results = []
+        # Try to use tree-sitter if available, else fallback to regex for demo
+        try:
+            if self.router:
+                tree = self.router.parse(code)
+                # TODO: Implement real tree-sitter logic for pandas/sqlalchemy/pyspark
+                # For now, fallback to regex below
+        except Exception as e:
+            logger.warning(f"Tree-sitter parse failed: {e}")
+
+        # Regex fallback for demo: pandas.read_csv, pandas.read_sql, sqlalchemy.execute, pyspark.read/write
+        patterns = [
+            (r"pandas\.read_csv\(([^)]+)\)", 'read_csv'),
+            (r"pandas\.read_sql\(([^)]+)\)", 'read_sql'),
+            (r"sqlalchemy\.[\w_]+\.execute\(([^)]+)\)", 'execute'),
+            (r"pyspark\.[\w_]+\.read\(([^)]+)\)", 'read'),
+            (r"pyspark\.[\w_]+\.write\(([^)]+)\)", 'write'),
+        ]
+        for pat, call_type in patterns:
+            for m in re.finditer(pat, code):
+                arg = m.group(1).strip()
+                # Try to extract string literal, else mark as dynamic
+                if arg.startswith("f\"") or arg.startswith("f'" ):
+                    dataset = 'DYNAMIC_REFERENCE'
+                    dynamic = True
+                elif arg.startswith('"') or arg.startswith("'"):
+                    dataset = arg.strip('"\' ')
+                    dynamic = False
+                else:
+                    dataset = 'DYNAMIC_REFERENCE'
+                    dynamic = True
+                results.append({
+                    'type': call_type,
+                    'source': dataset if call_type in ['read_csv', 'read_sql', 'read'] else None,
+                    'sink': dataset if call_type in ['write', 'execute'] else None,
+                    'dynamic': dynamic
+                })
+        # Real extraction: try to pair reads and writes in the same file
+        reads = []
+        writes = []
+        for pat, call_type in patterns:
+            for m in re.finditer(pat, code):
+                arg = m.group(1).strip()
+                if arg.startswith("f\"") or arg.startswith("f'"):
+                    dataset = 'DYNAMIC_REFERENCE'
+                    dynamic = True
+                elif arg.startswith('"') or arg.startswith("'"):
+                    dataset = arg.strip('"\' ')
+                    dynamic = False
+                else:
+                    dataset = 'DYNAMIC_REFERENCE'
+                    dynamic = True
+                if call_type in ['read_csv', 'read_sql', 'read']:
+                    reads.append({'type': call_type, 'dataset': dataset, 'dynamic': dynamic})
+                elif call_type in ['write', 'execute']:
+                    writes.append({'type': call_type, 'dataset': dataset, 'dynamic': dynamic})
+        # Pair reads and writes for edges, else emit as sources/sinks
+        for r in reads:
+            results.append({'type': r['type'], 'source': r['dataset'], 'sink': None, 'dynamic': r['dynamic']})
+        for w in writes:
+            results.append({'type': w['type'], 'source': None, 'sink': w['dataset'], 'dynamic': w['dynamic']})
+        # Add edges between all reads and writes in the same file (simple heuristic)
+        for r in reads:
+            for w in writes:
+                if r['dataset'] != 'DYNAMIC_REFERENCE' and w['dataset'] != 'DYNAMIC_REFERENCE':
+                    results.append({'type': 'edge', 'source': r['dataset'], 'sink': w['dataset'], 'dynamic': False})
+        return results
 
 class SQLLineageAnalyzer:
     def __init__(self):
@@ -59,8 +122,21 @@ class DAGConfigAnalyzer:
         self.router = tree_sitter_router
 
     def analyze(self, code: str) -> List[Dict[str, Any]]:
-        # Placeholder: Use tree-sitter to extract DAG topology from Airflow dag.py
-        return []
+        # Simple regex-based Airflow DAG and task extraction
+        results = []
+        # Find DAG definitions
+        dag_matches = re.findall(r'DAG\s*\(.*?\)', code, re.DOTALL)
+        for dag_def in dag_matches:
+            results.append({'type': 'dag', 'definition': dag_def})
+        # Find operator/task instantiations (e.g., PythonOperator, BashOperator, etc.)
+        op_matches = re.findall(r'(\w+Operator)\s*\(', code)
+        for op in op_matches:
+            results.append({'type': 'operator', 'operator': op})
+        # Find task dependencies (>> or <<)
+        dep_matches = re.findall(r'(\w+)\s*(>>|<<)\s*(\w+)', code)
+        for left, op, right in dep_matches:
+            results.append({'type': 'dependency', 'from': left, 'to': right, 'direction': op})
+        return results
 
 class DataLineageGraph:
     def __init__(self):

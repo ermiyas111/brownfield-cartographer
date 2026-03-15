@@ -41,6 +41,19 @@ def generate_CODEBASE_md(knowledge_graph, output_path):
     for hv in high_velocity:
         lines.append(f"- {hv}")
     lines.append("")
+    # Lineage Graph Insights
+    lineage_pagerank = knowledge_graph.get('lineage_pagerank', [])
+    lineage_circular = knowledge_graph.get('lineage_circular', [])
+    if lineage_pagerank:
+        lines.append("## Data Lineage PageRank (Top 5 Nodes)\n")
+        for node in lineage_pagerank[:5]:
+            lines.append(f"- {node['node']} (PageRank: {node['score']:.4f})")
+        lines.append("")
+    if lineage_circular:
+        lines.append("## Data Lineage Circular Dependencies\n")
+        for cycle in lineage_circular:
+            lines.append(f"- {' -> '.join(cycle)}")
+        lines.append("")
     # AI-Readiness
     lines.append("## AI-Readiness\n")
     lines.append("This documentation is structured for optimal retrieval-augmented generation (RAG) and LLM context injection.\n")

@@ -22,6 +22,15 @@ def analyze(
         repo_path = temp_dir
     try:
         main(repo_path)
+        # If using a temp_dir (GitHub clone), copy .cartography outputs to CWD
+        if temp_dir:
+            src_cartography = os.path.join(temp_dir, '.cartography')
+            if os.path.exists(src_cartography):
+                dest_cartography = os.path.join(os.getcwd(), '.cartography')
+                if os.path.exists(dest_cartography):
+                    shutil.rmtree(dest_cartography, ignore_errors=True)
+                shutil.copytree(src_cartography, dest_cartography)
+                print(f"Copied .cartography results to {dest_cartography}")
     finally:
         if temp_dir:
             shutil.rmtree(temp_dir, ignore_errors=True)
