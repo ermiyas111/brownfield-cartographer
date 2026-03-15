@@ -61,3 +61,16 @@ def generate_CODEBASE_md(knowledge_graph, output_path):
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
     return output_path
+
+def generate_cartography_trace(actions: list, output_path: str):
+    """
+    Write a cartography_trace.jsonl audit log of every analysis action.
+    Each action should be a dict with at least a timestamp, phase, action_type, and details.
+    """
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for action in actions:
+            # Ensure timestamp is present
+            if 'timestamp' not in action:
+                action['timestamp'] = datetime.utcnow().isoformat()
+            f.write(json.dumps(action) + '\n')
+    return output_path

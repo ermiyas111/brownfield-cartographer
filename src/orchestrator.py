@@ -5,6 +5,7 @@ from src.agents.surveyor import Surveyor
 from src.agents.hydrologist import PythonDataFlowAnalyzer, SQLLineageAnalyzer, DAGConfigAnalyzer, DataLineageGraph
 import networkx as nx
 from networkx.readwrite import json_graph
+from datetime import datetime
 
 def find_files(root: str, exts=(".py", ".sql", ".yaml", ".yml")):
     ignore_dirs = {'.git', '.venv', 'venv', '__pycache__'}
@@ -178,6 +179,72 @@ def main(repo_path: str):
         codebase_md_path = os.path.join(repo_path, '.cartography', 'CODEBASE.md')
         generate_CODEBASE_md(knowledge_graph, codebase_md_path)
         print(f"CODEBASE.md written to {codebase_md_path}")
+
+        # Generate onboarding_brief.md
+        from src.agents.onboarding_brief import generate_onboarding_brief
+        onboarding_path = os.path.join(repo_path, '.cartography', 'onboarding_brief.md')
+        generate_onboarding_brief(knowledge_graph, onboarding_path)
+        print(f"onboarding_brief.md written to {onboarding_path}")
+
+        # Generate semantic_index/semantic_index.jsonl
+        from src.agents.semantic_index import generate_semantic_index
+        semantic_index_dir = os.path.join(repo_path, 'semantic_index')
+        generate_semantic_index(module_nodes, semantic_index_dir)
+        print(f"semantic_index.jsonl written to {semantic_index_dir}")
+
+        # --- Cartography Trace Audit Log ---
+        from src.agents.archivist import generate_cartography_trace
+        trace_path = os.path.join(repo_path, '.cartography', 'cartography_trace.jsonl')
+        # Example: collect actions from each phase (expand as needed)
+        actions = []
+        # Surveyor actions
+        for node in pagerank[:5]:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'surveyor',
+                'action_type': 'pagerank',
+                'details': node
+            })
+        for cycle in circular:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'surveyor',
+                'action_type': 'circular_dependency',
+                'details': cycle
+            })
+        # Hydrologist actions (lineage)
+        for node in knowledge_graph['lineage_pagerank'][:5]:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'hydrologist',
+                'action_type': 'lineage_pagerank',
+                'details': node
+            })
+        for cycle in knowledge_graph['lineage_circular']:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'hydrologist',
+                'action_type': 'lineage_circular',
+                'details': cycle
+            })
+        # Semanticist/Archivist actions (clusters, high velocity)
+        for cluster in clusters:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'semanticist',
+                'action_type': 'domain_cluster',
+                'details': cluster
+            })
+        for hv in high_velocity:
+            actions.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'phase': 'archivist',
+                'action_type': 'high_velocity',
+                'details': hv
+            })
+        generate_cartography_trace(actions, trace_path)
+        print(f"cartography_trace.jsonl written to {trace_path}")
+
     except Exception as e:
         import traceback
         print(f"[ERROR] Could not generate CODEBASE.md: {e}")

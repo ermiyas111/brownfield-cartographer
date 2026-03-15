@@ -5,10 +5,10 @@ This system is organized into the following high-level domains: Domain 0. Each d
 ## Critical Path (Top 5 Modules by PageRank)
 
 - airflow-core\docs\img\diagram_auth_manager_airflow_architecture.py (PageRank: 0.0001)
-- airflow-core\docs\img\diagram_basic_airflow_architecture.py (PageRank: 0.0001)
-- airflow-core\hatch_build.py (PageRank: 0.0001)
-- airflow-core\src\airflow\providers_manager.py (PageRank: 0.0001)
 - airflow-core\docs\img\diagram_dag_processor_airflow_architecture.py (PageRank: 0.0001)
+- airflow-core\docs\empty_plugin\empty_plugin.py (PageRank: 0.0001)
+- airflow-core\hatch_build.py (PageRank: 0.0001)
+- airflow-core\src\airflow\policies.py (PageRank: 0.0001)
 
 ## Ingestion/Egress Map
 
@@ -46,25 +46,25 @@ This system is organized into the following high-level domains: Domain 0. Each d
 - TaskGroup
 - Task
 - with -> relations
-- provides -> via
+- via -> provides
 - TaskGroup -> task
 - op -> xcomarg
-- xcom_args_b -> bash_op2
-- xcom_args_a -> bash_op1
+- bash_op2 -> xcom_args_b
+- bash_op1 -> xcom_args_a
+- group2_emp3 -> Label
 - w2 -> w3 -> t1 -> s2
 - w2 -> w3 -> t2 -> t1 -> s2
-- op2 -> op3 -> t1 -> s2
-- op2 -> op3
-- t2 -> t1
-- t2 -> t1 -> s2
-- t2 -> t1 -> Label
-- group3 -> Label
+- group1 -> Label
 - Label -> op3 -> t1
 - Label -> group
-- Label -> group1
-- Label -> group2_emp3
+- Label -> group3
+- Label -> t2 -> t1
+- t2 -> t1
+- t2 -> t1 -> s2
 - t1 -> s2
+- t1 -> s2 -> op2 -> op3
 - t1 -> s2 -> t0
+- op3 -> op2
 
 ## AI-Readiness
 
